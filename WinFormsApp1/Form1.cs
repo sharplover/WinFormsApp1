@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows.Forms;
@@ -24,48 +25,76 @@ namespace WinFormsApp1
             }
         }
 
-        // Обработчик кнопки выбора папки для сохранения нового файла
-        private void btnSelectFolder_Click(object sender, EventArgs e)
-        {
-            FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
-            if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
-            {
-                txtDestinationFolder.Text = folderBrowserDialog.SelectedPath;
-            }
-        }
-
         // Обработчик кнопки "Выполнить" для преобразования XML
         private void btnExecute_Click(object sender, EventArgs e)
         {
             string sourceFile = txtSourceFile.Text;
-            string destinationFolder = txtDestinationFolder.Text;
 
-            if (string.IsNullOrEmpty(sourceFile) || string.IsNullOrEmpty(destinationFolder))
+            if (string.IsNullOrEmpty(sourceFile))
             {
-                MessageBox.Show("Пожалуйста, выберите исходный файл и папку для сохранения.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Пожалуйста, выберите исходный файл.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             try
             {
                 // Загружаем старый XML
-                XElement oldXml = XElement.Load(sourceFile);
+                XDocument oldXml = XDocument.Load(sourceFile);
                 XElement newXml = new XElement("StationMap",
                     new XAttribute("Step", "13"),
                     new XAttribute("Width", "142"),
                     new XAttribute("Height", "36"),
                     new XElement("points"),
-                    new XElement("lines")
+                    new XElement("lines"),
+                    new XElement("textCollection")
                 );
+
+
+                // string title = oldXml.Element("Schema")?.Attribute("Title")?.Value ?? "";
+                string title = "";
+
+                XNamespace ns = oldXml.Root.GetDefaultNamespace(); // Получаем пространство имен корня
+                XElement schemaElement = oldXml.Descendants(ns + "Schema").FirstOrDefault();
+                if (schemaElement != null)
+                {
+                    title = schemaElement.Attribute("Title")?.Value ?? "";
+                    
+                }
+                else
+                {
+                    Debug.WriteLine("Element 'Schema' not found.");
+                }
+
+                Debug.WriteLine($"Title: {title}");
+                Debug.WriteLine(2 + 2);
+
+                newXml.Element("textCollection").Add(
+                   new XElement("text",
+                   new XAttribute("location_X", "5"),
+                   new XAttribute("location_Y", "2"),
+                   new XAttribute("size_W", "8"),
+                   new XAttribute("size_H", "2"),
+                   new XAttribute("text", title),
+                   new XAttribute("alignment", "2"),
+                   new XAttribute("fontFamilyName", "Microsoft Sans Serif"),
+                   new XAttribute("fontStyle", "100"),
+                   new XAttribute("fontSize", "15"),
+                   new XAttribute("color", "-16777216"),
+                   new XAttribute("angle", "0")
+                   )
+              );
+
+
+
 
                 int increment = 1;
 
                 // Найдем максимальные значения координат
-                double maxX = oldXml.Descendants("SchemaPoint")
+                double maxX = oldXml.Root.Descendants("SchemaPoint")
                                     .Select(p => double.TryParse(p.Attribute("X")?.Value, out var x) ? x : 0)
                                     .Max();
 
-                double maxY = oldXml.Descendants("SchemaPoint")
+                double maxY = oldXml.Root.Descendants("SchemaPoint")
                                     .Select(p => double.TryParse(p.Attribute("Y")?.Value, out var y) ? y : 0)
                                     .Max();
 
@@ -88,7 +117,7 @@ namespace WinFormsApp1
                 //}
 
                 // Перебираем все <SchemaPoint> в старом XML и переносим их в новый формат
-                foreach (var schemaPoint in oldXml.Descendants("SchemaPoint"))
+                foreach (var schemaPoint in oldXml.Root.Descendants("SchemaPoint"))
                 {
                     string pointId = schemaPoint.Attribute("Id")?.Value;
                     string x = schemaPoint.Attribute("X")?.Value;
@@ -103,9 +132,6 @@ namespace WinFormsApp1
                         ? (Math.Round(yCoord / scale)).ToString("0")  // Округляем и сохраняем как целое число
                         : y;
 
-                    // Генерация номера (например, первые 2 символа Id)
-                    string number = pointId?.Substring(0, 2);
-
                     // Создаем точку в новом XML
                     newXml.Element("points").Add(
                         new XElement("point",
@@ -113,7 +139,7 @@ namespace WinFormsApp1
                             new XAttribute("X", Convert.ToInt32(shortX)), // Преобразуем в целое число
                             new XAttribute("Y", Convert.ToInt32(shortY)), // Преобразуем в целое число
                             new XElement("pointInfo",
-                                new XAttribute("number", number),
+                                new XAttribute("number", ""),
                                 new XAttribute("type", "2"),
                                 new XAttribute("textPosition", "3"),
                                 new XAttribute("gorlovina", "")
@@ -125,110 +151,141 @@ namespace WinFormsApp1
                 }
 
                 // Ищем родительский элемент <Sections> и продолжаем обработку линий
-                var sectionsElement = oldXml.Element("Sections");
+                var editorTracksElement = oldXml.Root.Element("EditorTracks");
+                var sectionsElement = oldXml.Root.Element("Sections");
 
-                if (sectionsElement != null)
+                if (editorTracksElement != null && sectionsElement != null)
                 {
-
-                    // обнуляем инкремент
                     increment = 1;
 
-                    // Перебираем все <Section> внутри <Sections>
-                    foreach (var section in sectionsElement.Descendants("Section"))
+                    foreach (var editorTrack in editorTracksElement.Elements("EditorTrack"))
                     {
-                        var startElement = section.Element("Start");
-                        var endElement = section.Element("End");
 
-                        if (startElement != null && endElement != null)
+                        string editorTrackNumber = editorTrack.Attribute("Number")?.Value ?? "";
+
+                        var trackSections = editorTrack.Element("Sections");
+                        if (trackSections == null) continue;
+
+                        // Собираем длины секций, относящихся к текущей группе EditorTrack
+                        var sectionsInTrack = trackSections.Elements("Section")
+                            .Select(s => s.Attribute("Guid")?.Value)
+                            .Where(guid => !string.IsNullOrEmpty(guid))
+                            .Select(guid => sectionsElement.Elements("Section")
+                                .FirstOrDefault(sec => sec.Attribute("Guid")?.Value == guid))
+                            .Where(sec => sec != null)
+                            .Select(sec => new
+                            {
+                                SectionElement = sec,
+                                Length = double.TryParse(sec.Attribute("Length")?.Value, out var len) ? len : 0
+                            })
+                            .ToList();
+
+                        // Находим самую длинную секцию в текущей группе
+                        var longestSection = sectionsInTrack
+                            .OrderByDescending(s => s.Length)
+                            .FirstOrDefault();
+
+                        if (longestSection != null)
                         {
-                            string startId = startElement.Attribute("Id")?.Value;
-                            string endId = endElement.Attribute("Id")?.Value;
+                            Console.WriteLine($"Самая длинная секция: {longestSection.SectionElement} с длиной {longestSection.Length}");
+                        }
 
-                            if (startId == null || endId == null)
+                        // Остальная обработка для секций
+                        foreach (var sectionData in sectionsInTrack)
+                        {
+                            var section = sectionData.SectionElement;
+                            var startElement = section.Element("Start");
+                            var endElement = section.Element("End");
+
+                            if (startElement != null && endElement != null)
                             {
-                                continue;
-                            }
+                                var startPoint = oldXml.Root.Descendants("SchemaPoint")
+                                    .FirstOrDefault(p => p.Attribute("Id")?.Value == startElement.Attribute("Id")?.Value);
+                                var endPoint = oldXml.Root.Descendants("SchemaPoint")
+                                    .FirstOrDefault(p => p.Attribute("Id")?.Value == endElement.Attribute("Id")?.Value);
 
-                            var startPoint = oldXml.Descendants("SchemaPoint").FirstOrDefault(p => p.Attribute("Id")?.Value == startId);
-                            var endPoint = oldXml.Descendants("SchemaPoint").FirstOrDefault(p => p.Attribute("Id")?.Value == endId);
+                                if (startPoint != null && endPoint != null)
+                                {
+                                    string startX = startPoint.Attribute("X")?.Value;
+                                    string startY = startPoint.Attribute("Y")?.Value;
+                                    string endX = endPoint.Attribute("X")?.Value;
+                                    string endY = endPoint.Attribute("Y")?.Value;
 
-                            if (startPoint != null && endPoint != null)
-                            {
-                                string startX = startPoint.Attribute("X")?.Value;
-                                string startY = startPoint.Attribute("Y")?.Value;
-                                string endX = endPoint.Attribute("X")?.Value;
-                                string endY = endPoint.Attribute("Y")?.Value;
+                                    // Преобразуем координаты с учетом масштаба и округляем до целых чисел
+                                    string shortStartX = !string.IsNullOrEmpty(startX) && double.TryParse(startX, NumberStyles.Any, CultureInfo.InvariantCulture, out var sX)
+                                        ? (Math.Round(sX / scale)).ToString("0")  // Округляем и сохраняем как целое число
+                                        : startX;
 
-                                // Преобразуем координаты с учетом масштаба и округляем до целых чисел
-                                string shortStartX = !string.IsNullOrEmpty(startX) && double.TryParse(startX, NumberStyles.Any, CultureInfo.InvariantCulture, out var sX)
-                                    ? (Math.Round(sX / scale)).ToString("0")  // Округляем и сохраняем как целое число
-                                    : startX;
+                                    string shortStartY = !string.IsNullOrEmpty(startY) && double.TryParse(startY, NumberStyles.Any, CultureInfo.InvariantCulture, out var sY)
+                                        ? (Math.Round(sY / scale)).ToString("0")  // Округляем и сохраняем как целое число
+                                        : startY;
 
-                                string shortStartY = !string.IsNullOrEmpty(startY) && double.TryParse(startY, NumberStyles.Any, CultureInfo.InvariantCulture, out var sY)
-                                    ? (Math.Round(sY / scale)).ToString("0")  // Округляем и сохраняем как целое число
-                                    : startY;
+                                    string shortEndX = !string.IsNullOrEmpty(endX) && double.TryParse(endX, NumberStyles.Any, CultureInfo.InvariantCulture, out var eX)
+                                        ? (Math.Round(eX / scale)).ToString("0")  // Округляем и сохраняем как целое число
+                                        : endX;
 
-                                string shortEndX = !string.IsNullOrEmpty(endX) && double.TryParse(endX, NumberStyles.Any, CultureInfo.InvariantCulture, out var eX)
-                                    ? (Math.Round(eX / scale)).ToString("0")  // Округляем и сохраняем как целое число
-                                    : endX;
+                                    string shortEndY = !string.IsNullOrEmpty(endY) && double.TryParse(endY, NumberStyles.Any, CultureInfo.InvariantCulture, out var eY)
+                                        ? (Math.Round(eY / scale)).ToString("0")  // Округляем и сохраняем как целое число
+                                        : endY;
 
-                                string shortEndY = !string.IsNullOrEmpty(endY) && double.TryParse(endY, NumberStyles.Any, CultureInfo.InvariantCulture, out var eY)
-                                    ? (Math.Round(eY / scale)).ToString("0")  // Округляем и сохраняем как целое число
-                                    : endY;
-
-                                string length = section.Attribute("Length")?.Value ?? "0"; // Если длина не задана, берем 0
+                                    string length = section.Attribute("Length")?.Value ?? "0"; // Если длина не задана, берем 0
 
 
-                                // Получение значения IsMain
-                                bool isMain = section.Attribute("IsMain")?.Value == "true";
+                                    // Присваиваем имя только для самой длинной секции
+                                    string lineName = section.Attribute("Guid")?.Value == longestSection?.SectionElement.Attribute("Guid")?.Value ? editorTrackNumber : "";
 
-                                // Определение значения name и specialization
-                                string lineName = section.Attribute("Name")?.Value ?? string.Empty;
-                                string specialization = isMain ? "15" : string.IsNullOrEmpty(lineName) ? "17" : "2";
 
-                                // Определяем значение kind
-                                int kind = shortStartY == shortEndY ? 0 :  // Горизонтальная
-                                           shortStartX == shortEndX ? 1 :  // Вертикальная
-                                           double.Parse(shortStartY) > double.Parse(shortEndY) ? 2 : 3; // Диагональ
+                                    // Получение значения IsMain
+                                    bool isMain = section.Attribute("IsMain")?.Value == "true";
 
-                                newXml.Element("lines").Add(
-                                    new XElement("line",
-                                        new XAttribute("id", increment.ToString()), // Используем инкремент для линий
-                                        new XAttribute("sX", Convert.ToInt32(shortStartX)), // Преобразуем в целое число
-                                        new XAttribute("sY", Convert.ToInt32(shortStartY)), // Преобразуем в целое число
-                                        new XAttribute("eX", Convert.ToInt32(shortEndX)), // Преобразуем в целое число
-                                        new XAttribute("eY", Convert.ToInt32(shortEndY)), // Преобразуем в целое число
-                                        new XAttribute("kind", kind),
-                                        new XElement("lineInfo",
-                                            new XAttribute("type", "1"),
-                                            new XAttribute("name", lineName),
-                                            new XAttribute("specialization", specialization),
-                                            new XAttribute("lengthInVagons", "0"),
-                                            new XAttribute("length", length),
-                                            new XAttribute("park", ""),
-                                            new XAttribute("lengthLeft", "0"),
-                                            new XAttribute("nameLeft", ""),
-                                            new XAttribute("signalLeft", "3"),
-                                            new XAttribute("lengthRight", "0"),
-                                            new XAttribute("nameRight", ""),
-                                            new XAttribute("signalRight", "3")
+                                    // Определение значения name и specialization
+                                    string sectionName = section.Attribute("Name")?.Value ?? string.Empty;
+                                    string specialization = isMain ? "15" : string.IsNullOrEmpty(sectionName) ? "17" : "2";
+
+                                    int type = !string.IsNullOrEmpty(lineName) ? 2 : 1;
+
+                                    // Определяем значение kind
+                                    int kind = shortStartY == shortEndY ? 0 :  // Горизонтальная
+                                               shortStartX == shortEndX ? 1 :  // Вертикальная
+                                               double.Parse(shortStartY) > double.Parse(shortEndY) ? 2 : 3; // Диагональ
+
+                                    newXml.Element("lines").Add(
+                                        new XElement("line",
+                                            new XAttribute("id", increment.ToString()), // Используем инкремент для линий
+                                            new XAttribute("sX", Convert.ToInt32(shortStartX)), // Преобразуем в целое число
+                                            new XAttribute("sY", Convert.ToInt32(shortStartY)), // Преобразуем в целое число
+                                            new XAttribute("eX", Convert.ToInt32(shortEndX)), // Преобразуем в целое число
+                                            new XAttribute("eY", Convert.ToInt32(shortEndY)), // Преобразуем в целое число
+                                            new XAttribute("kind", kind),
+                                            new XElement("lineInfo",
+                                                new XAttribute("type", type),
+                                                new XAttribute("name", lineName),
+                                                new XAttribute("specialization", specialization),
+                                                new XAttribute("lengthInVagons", "0"),
+                                                new XAttribute("length", length),
+                                                new XAttribute("park", ""),
+                                                new XAttribute("lengthLeft", "0"),
+                                                new XAttribute("nameLeft", ""),
+                                                new XAttribute("signalLeft", "3"),
+                                                new XAttribute("lengthRight", "0"),
+                                                new XAttribute("nameRight", ""),
+                                                new XAttribute("signalRight", "3")
+                                            )
                                         )
-                                    )
-                                );
+                                    );
 
-                                increment++;
+                                    increment++;
+                                }
                             }
                         }
                     }
 
+                    // Определяем путь для нового файла
+                    string destinationFile = Path.Combine(Path.GetDirectoryName(sourceFile), "новый.xml");
+                    newXml.Save(destinationFile);
 
+                    MessageBox.Show($"Преобразование завершено. Файл сохранен в: {destinationFile}", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
-
-                // Сохраняем новый XML
-                string destinationFile = Path.Combine(destinationFolder, "новый.xml");
-                newXml.Save(destinationFile);
-
-                MessageBox.Show($"Преобразование завершено. Файл сохранен в: {destinationFile}", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
