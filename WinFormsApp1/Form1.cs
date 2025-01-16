@@ -58,15 +58,14 @@ namespace WinFormsApp1
                 if (schemaElement != null)
                 {
                     title = schemaElement.Attribute("Title")?.Value ?? "";
-                    
+
                 }
                 else
                 {
                     Debug.WriteLine("Element 'Schema' not found.");
                 }
 
-                Debug.WriteLine($"Title: {title}");
-                Debug.WriteLine(2 + 2);
+                //Debug.WriteLine($"Title: {title}");
 
                 newXml.Element("textCollection").Add(
                    new XElement("text",
@@ -85,6 +84,13 @@ namespace WinFormsApp1
               );
 
 
+
+
+                /*
+                 * 
+                 * Создание точек
+                 * 
+                 */
 
 
                 int increment = 1;
@@ -111,46 +117,74 @@ namespace WinFormsApp1
                 {
                     scale = 10;
                 }
-                //else if (maxCoord >= 100)
-                //{
-                //    scale = 10;
-                //}
 
-                // Перебираем все <SchemaPoint> в старом XML и переносим их в новый формат
-                foreach (var schemaPoint in oldXml.Root.Descendants("SchemaPoint"))
+                var switchsElement = oldXml.Root.Element("Switchs");
+                var schemaPointsElement = oldXml.Root.Element("Points");
+
+                if (schemaPointsElement != null)
                 {
-                    string pointId = schemaPoint.Attribute("Id")?.Value;
-                    string x = schemaPoint.Attribute("X")?.Value;
-                    string y = schemaPoint.Attribute("Y")?.Value;
+                    foreach (var schemaPoint in schemaPointsElement.Elements("SchemaPoint"))
+                    {
+                        string pointId = schemaPoint.Attribute("Id")?.Value;
+                        if (string.IsNullOrEmpty(pointId)) continue;
 
-                    // Преобразуем координаты с использованием выбранного масштаба и округляем до целых чисел
-                    string shortX = !string.IsNullOrEmpty(x) && double.TryParse(x, NumberStyles.Any, CultureInfo.InvariantCulture, out var xCoord)
-                        ? (Math.Round(xCoord / scale)).ToString("0")  // Округляем и сохраняем как целое число
-                        : x;
+                        string x = schemaPoint.Attribute("X")?.Value;
+                        string y = schemaPoint.Attribute("Y")?.Value;
 
-                    string shortY = !string.IsNullOrEmpty(y) && double.TryParse(y, NumberStyles.Any, CultureInfo.InvariantCulture, out var yCoord)
-                        ? (Math.Round(yCoord / scale)).ToString("0")  // Округляем и сохраняем как целое число
-                        : y;
+                        // Преобразуем координаты с использованием масштаба
+                        string shortX = !string.IsNullOrEmpty(x) && double.TryParse(x, NumberStyles.Any, CultureInfo.InvariantCulture, out var xCoord)
+                            ? (Math.Round(xCoord / scale)).ToString("0")
+                            : x;
 
-                    // Создаем точку в новом XML
-                    newXml.Element("points").Add(
-                        new XElement("point",
-                            new XAttribute("id", increment.ToString()), // Используем инкремент для ID
-                            new XAttribute("X", Convert.ToInt32(shortX)), // Преобразуем в целое число
-                            new XAttribute("Y", Convert.ToInt32(shortY)), // Преобразуем в целое число
-                            new XElement("pointInfo",
-                                new XAttribute("number", ""),
-                                new XAttribute("type", "2"),
-                                new XAttribute("textPosition", "3"),
-                                new XAttribute("gorlovina", "")
+                        string shortY = !string.IsNullOrEmpty(y) && double.TryParse(y, NumberStyles.Any, CultureInfo.InvariantCulture, out var yCoord)
+                            ? (Math.Round(yCoord / scale)).ToString("0")
+                            : y;
+
+                        // Ищем, связан ли SchemaPoint с Switch
+                        string switchName = "";
+                        if (switchsElement != null)
+                        {
+                            foreach (var oneSwitch in switchsElement.Elements("Switch"))
+                            {
+                                var switchPoint = oneSwitch.Element("Point");
+                                if (switchPoint == null) continue;
+
+                                string switchPointId = switchPoint.Attribute("Id")?.Value;
+                                if (pointId == switchPointId)
+                                {
+                                    switchName = oneSwitch.Attribute("Name")?.Value ?? "";
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Добавляем точку в новый XML
+                        newXml.Element("points").Add(
+                            new XElement("point",
+                                new XAttribute("id", increment.ToString()),
+                                new XAttribute("X", Convert.ToInt32(shortX)),
+                                new XAttribute("Y", Convert.ToInt32(shortY)),
+                                new XElement("pointInfo",
+                                    new XAttribute("number", switchName), // Присваиваем имя или оставляем пустым
+                                    new XAttribute("type", "2"),
+                                    new XAttribute("textPosition", "3"),
+                                    new XAttribute("gorlovina", "")
+                                )
                             )
-                        )
-                    );
+                        );
 
-                    increment++;
+                        // Увеличиваем инкремент
+                        increment++;
+                    }
                 }
 
-                // Ищем родительский элемент <Sections> и продолжаем обработку линий
+
+                /*
+                 * 
+                 * Создание линий
+                 * 
+                 */
+
                 var editorTracksElement = oldXml.Root.Element("EditorTracks");
                 var sectionsElement = oldXml.Root.Element("Sections");
 
@@ -161,7 +195,14 @@ namespace WinFormsApp1
                     foreach (var editorTrack in editorTracksElement.Elements("EditorTrack"))
                     {
 
-                        string editorTrackNumber = editorTrack.Attribute("Number")?.Value ?? "";
+                        string editorTrackNumber = "";
+                        string editorTrackType = editorTrack.Attribute("Type")?.Value;
+
+                        // Проверяем тип и присваиваем Number только если тип "Station" или "Main"
+                        if (editorTrackType == "Station" || editorTrackType == "Main")
+                        {
+                            editorTrackNumber = editorTrack.Attribute("Number")?.Value ?? "";
+                        }
 
                         var trackSections = editorTrack.Element("Sections");
                         if (trackSections == null) continue;
@@ -242,7 +283,7 @@ namespace WinFormsApp1
                                     string sectionName = section.Attribute("Name")?.Value ?? string.Empty;
                                     string specialization = isMain ? "15" : string.IsNullOrEmpty(sectionName) ? "17" : "2";
 
-                                    int type = !string.IsNullOrEmpty(lineName) ? 2 : 1;
+                                    int lineType = !string.IsNullOrEmpty(lineName) ? 2 : 1;
 
                                     // Определяем значение kind
                                     int kind = shortStartY == shortEndY ? 0 :  // Горизонтальная
@@ -258,7 +299,7 @@ namespace WinFormsApp1
                                             new XAttribute("eY", Convert.ToInt32(shortEndY)), // Преобразуем в целое число
                                             new XAttribute("kind", kind),
                                             new XElement("lineInfo",
-                                                new XAttribute("type", type),
+                                                new XAttribute("type", lineType),
                                                 new XAttribute("name", lineName),
                                                 new XAttribute("specialization", specialization),
                                                 new XAttribute("lengthInVagons", "0"),
