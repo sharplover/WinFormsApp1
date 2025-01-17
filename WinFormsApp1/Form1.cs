@@ -46,11 +46,11 @@ namespace WinFormsApp1
                     new XAttribute("Height", "36"),
                     new XElement("points"),
                     new XElement("lines"),
-                    new XElement("textCollection")
+                    new XElement("textCollection"),
+                    new XElement("settings")
                 );
 
 
-                // string title = oldXml.Element("Schema")?.Attribute("Title")?.Value ?? "";
                 string title = "";
 
                 XNamespace ns = oldXml.Root.GetDefaultNamespace(); // Получаем пространство имен корня
@@ -64,8 +64,6 @@ namespace WinFormsApp1
                 {
                     Debug.WriteLine("Element 'Schema' not found.");
                 }
-
-                //Debug.WriteLine($"Title: {title}");
 
                 newXml.Element("textCollection").Add(
                    new XElement("text",
@@ -83,6 +81,41 @@ namespace WinFormsApp1
                    )
               );
 
+                newXml.Element("settings").Add(
+                    new XAttribute("StationMap_backgroundColor", "-1"),
+                    new XAttribute("StationMap_selectionColor", "-16776961"),
+                    new XAttribute("MapGrid_visible", "True"),
+                    new XAttribute("MapGrid_color", "-2302756"),
+                    new XAttribute("MapCursorPoint_color", "-5658199"),
+                    new XAttribute("MapCursorPoint_coordinatesVisible", "True"),
+                    new XAttribute("MapLineDraw_lineColor", "-8388608"),
+                    new XAttribute("MapLineDraw_pointColor", "-8388608"),
+                    new XAttribute("MapLineDraw_incorrectLineColor", "-5658199"),
+                    new XAttribute("MapLineDraw_incorrectPointColor", "-5658199"),
+                    new XAttribute("MapLineDraw_coordinatesVisible", "True"),
+                    new XAttribute("MapSelectionBox_borderColor", "-16777077"),
+                    new XAttribute("MapSelectionBox_innerColor", "-16776961"),
+                    new XAttribute("MapSelectionBox_coordinatesVisible", "True"),
+                    new XAttribute("MapLines_defaultColor", "-9868951"),
+                    new XAttribute("MapLines_defaultColorWithLength", "-5103070"),
+                    new XAttribute("MapLines_wayColor", "-8388608"),
+                    new XAttribute("MapLines_peregonColor", "-16777088"),
+                    new XAttribute("MapLines_signalColor", "-8388608"),
+                    new XAttribute("MapLines_signalVisible", "True"),
+                    new XAttribute("MapLines_signalNames", "True"),
+                    new XAttribute("MapPoints_errorArrowColor", "-65536"),
+                    new XAttribute("MapPoints_simpleArrowColor", "-8388480"),
+                    new XAttribute("MapPoints_crossColor", "-5658199"),
+                    new XAttribute("MapPoints_tunnelColor", "-16777216"),
+                    new XAttribute("MapGroups_groupColor", "-8531"),
+                    new XAttribute("MapGroups_groupVisible", "True"),
+                    new XAttribute("MapRoutes_routeColor", "-65536"),
+                    new XAttribute("MapRoutesBuildSettings.maxRoutesCount", "250"),
+                    new XAttribute("MapRoutesBuildSettings.maxRoutesCountForWay", "250"),
+                    new XAttribute("MapText_textVisible", "True"),
+                    new XAttribute("MapText_defaultColor", "-16777216"),
+                    new XAttribute("MapText_defaultDraw", "False")
+                );
 
 
 
