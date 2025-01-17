@@ -285,22 +285,22 @@ namespace WinFormsApp1
                                     string endX = endPoint.Attribute("X")?.Value;
                                     string endY = endPoint.Attribute("Y")?.Value;
 
-                                    // Преобразуем координаты с учетом масштаба и округляем до целых чисел
-                                    string shortStartX = !string.IsNullOrEmpty(startX) && double.TryParse(startX, NumberStyles.Any, CultureInfo.InvariantCulture, out var sX)
-                                        ? (Math.Round(sX / scale)).ToString("0")  // Округляем и сохраняем как целое число
-                                        : startX;
+                                    double sX = !string.IsNullOrEmpty(startX) && double.TryParse(startX, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedSX) ? parsedSX : 0;
+                                    double sY = !string.IsNullOrEmpty(startY) && double.TryParse(startY, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedSY) ? parsedSY : 0;
+                                    double eX = !string.IsNullOrEmpty(endX) && double.TryParse(endX, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedEX) ? parsedEX : 0;
+                                    double eY = !string.IsNullOrEmpty(endY) && double.TryParse(endY, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedEY) ? parsedEY : 0;
 
-                                    string shortStartY = !string.IsNullOrEmpty(startY) && double.TryParse(startY, NumberStyles.Any, CultureInfo.InvariantCulture, out var sY)
-                                        ? (Math.Round(sY / scale)).ToString("0")  // Округляем и сохраняем как целое число
-                                        : startY;
+                                    if (sX > eX)
+                                    {
+                                        (sX, eX) = (eX, sX);
+                                        (sY, eY) = (eY, sY);
+                                    }
 
-                                    string shortEndX = !string.IsNullOrEmpty(endX) && double.TryParse(endX, NumberStyles.Any, CultureInfo.InvariantCulture, out var eX)
-                                        ? (Math.Round(eX / scale)).ToString("0")  // Округляем и сохраняем как целое число
-                                        : endX;
+                                    string shortStartX = Math.Round(sX / scale).ToString("0");
+                                    string shortStartY = Math.Round(sY / scale).ToString("0");
+                                    string shortEndX = Math.Round(eX / scale).ToString("0");
+                                    string shortEndY = Math.Round(eY / scale).ToString("0");
 
-                                    string shortEndY = !string.IsNullOrEmpty(endY) && double.TryParse(endY, NumberStyles.Any, CultureInfo.InvariantCulture, out var eY)
-                                        ? (Math.Round(eY / scale)).ToString("0")  // Округляем и сохраняем как целое число
-                                        : endY;
 
                                     string length = section.Attribute("Length")?.Value ?? "0"; // Если длина не задана, берем 0
 
@@ -313,15 +313,14 @@ namespace WinFormsApp1
                                     bool isMain = section.Attribute("IsMain")?.Value == "true";
 
                                     // Определение значения name и specialization
-                                    string sectionName = section.Attribute("Name")?.Value ?? string.Empty;
-                                    string specialization = isMain ? "15" : string.IsNullOrEmpty(sectionName) ? "17" : "2";
+                                    string specialization = isMain ? "15" : string.IsNullOrEmpty(lineName) ? "17" : "2";
 
                                     int lineType = !string.IsNullOrEmpty(lineName) ? 2 : 1;
 
                                     // Определяем значение kind
-                                    int kind = shortStartY == shortEndY ? 0 :  // Горизонтальная
-                                               shortStartX == shortEndX ? 1 :  // Вертикальная
-                                               double.Parse(shortStartY) > double.Parse(shortEndY) ? 2 : 3; // Диагональ
+                                    int kind = shortStartY == shortEndY ? 1 :  // Горизонтальная
+                                               shortStartX == shortEndX ? 0 :  // Вертикальная
+                                               double.Parse(shortStartY) > double.Parse(shortEndY) ? 3 : 2; // Диагональ
 
                                     newXml.Element("lines").Add(
                                         new XElement("line",
