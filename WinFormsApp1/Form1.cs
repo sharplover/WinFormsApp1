@@ -14,6 +14,22 @@ namespace WinFormsApp1
             InitializeComponent();
         }
 
+        //Тип линии
+        enum LineKind
+        {
+            Vertical = 0,
+            Horizontal = 1,
+            DiagonalUp = 2,
+            DiagonalDown = 3
+        }
+
+        // способ определить
+        private LineKind DetermineLineKind(int sX, int sY, int eX, int eY)
+        {
+            if (sY == eY) return LineKind.Horizontal;
+            if (sX == eX) return LineKind.Vertical;
+            return sY > eY ? LineKind.DiagonalDown : LineKind.DiagonalUp;
+        }
 
         // Метод для превращения прямых углов в диагонали
         private void ConvertRightAnglesToDiagonals(XElement newXml, int increment)
@@ -33,7 +49,6 @@ namespace WinFormsApp1
                 var eX1 = int.Parse(line1.Attribute("eX")?.Value ?? "0");
                 var eY1 = int.Parse(line1.Attribute("eY")?.Value ?? "0");
 
-                var kind1 = line1.Attribute("kind")?.Value ?? "1";
                 var lineInfo1 = line1.Element("lineInfo");
                 var lineType1 = lineInfo1?.Attribute("type")?.Value ?? "";
                 var lineName1 = lineInfo1?.Attribute("name")?.Value ?? "";
@@ -59,6 +74,9 @@ namespace WinFormsApp1
                     if ((eX1 == sX2 && eY1 == sY2) && // Совпадение точки
                         ((line1IsVertical && line2IsHorizontal) || (line1IsHorizontal && line2IsVertical))) // Перпендикулярность
                     {
+
+                        var kind = DetermineLineKind(sX1, sY1, eX2, eY2);
+
                         // Создаем диагональную линию
                         newLines.Add(new XElement("line",
                             new XAttribute("id", increment.ToString()),
@@ -66,7 +84,7 @@ namespace WinFormsApp1
                             new XAttribute("sY", sY1),
                             new XAttribute("eX", eX2),
                             new XAttribute("eY", eY2),
-                            new XAttribute("kind", kind1),
+                           new XAttribute("kind", (int)kind),
                             new XElement("lineInfo",
                         new XAttribute("type", lineType1),
                         new XAttribute("name", lineName1),
@@ -133,12 +151,56 @@ namespace WinFormsApp1
 
             try
             {
-                // Загружаем старый XML
                 XDocument oldXml = XDocument.Load(sourceFile);
+
+                // Отладочный вывод для проверки всех элементов SchemaPoint
+                var schemaPoints = oldXml.Root.Descendants("SchemaPoint").ToList();
+                Debug.WriteLine($"Найдено {schemaPoints.Count} элементов SchemaPoint");
+
+                foreach (var point in schemaPoints)
+                {
+                    Debug.WriteLine($"X: {point.Attribute("X")?.Value}, Y: {point.Attribute("Y")?.Value}");
+                }
+
+                // Найдем максимальные значения X и Y
+                CultureInfo culture = CultureInfo.InvariantCulture;
+
+                double maxX = schemaPoints
+                                 .Select(p => double.TryParse(p.Attribute("X")?.Value, NumberStyles.Float, culture, out var x) ? x : 0)
+                                 .Max();
+
+                double maxY = schemaPoints
+                                 .Select(p => double.TryParse(p.Attribute("Y")?.Value, NumberStyles.Float, culture, out var y) ? y : 0)
+                                 .Max();
+
+                Debug.WriteLine($"Максимальное значение X: {maxX}");
+                Debug.WriteLine($"Максимальное значение Y: {maxY}");
+
+
+                // Округляем значения до ближайшего большего целого для удобства
+                int calculatedWidth = (int)Math.Ceiling(maxX);
+                int calculatedHeight = (int)Math.Ceiling(maxY);
+
+
+                // Выбираем максимальную координату
+                double maxCoord = Math.Max(maxX, maxY);
+
+                // Определяем масштаб
+                double scale = 1;
+                if (maxCoord >= 10000)
+                {
+                    scale = 100;
+                }
+                else if (maxCoord >= 1000)
+                {
+                    scale = 10;
+                }
+
+
                 XElement newXml = new XElement("StationMap",
                     new XAttribute("Step", "13"),
-                    new XAttribute("Width", "1420"),
-                    new XAttribute("Height", "360"),
+                    new XAttribute("Width", ((calculatedWidth / scale) + 10).ToString("0")),  // Ширина из координат
+                    new XAttribute("Height", ((calculatedHeight / scale) + 10).ToString("0")), // Высота из координат
                     new XElement("points"),
                     new XElement("lines"),
                     new XElement("textCollection"),
@@ -176,43 +238,6 @@ namespace WinFormsApp1
                    )
               );
 
-                newXml.Element("settings").Add(
-                    new XAttribute("StationMap_backgroundColor", "-1"),
-                    new XAttribute("StationMap_selectionColor", "-16776961"),
-                    new XAttribute("MapGrid_visible", "True"),
-                    new XAttribute("MapGrid_color", "-2302756"),
-                    new XAttribute("MapCursorPoint_color", "-5658199"),
-                    new XAttribute("MapCursorPoint_coordinatesVisible", "True"),
-                    new XAttribute("MapLineDraw_lineColor", "-8388608"),
-                    new XAttribute("MapLineDraw_pointColor", "-8388608"),
-                    new XAttribute("MapLineDraw_incorrectLineColor", "-5658199"),
-                    new XAttribute("MapLineDraw_incorrectPointColor", "-5658199"),
-                    new XAttribute("MapLineDraw_coordinatesVisible", "True"),
-                    new XAttribute("MapSelectionBox_borderColor", "-16777077"),
-                    new XAttribute("MapSelectionBox_innerColor", "-16776961"),
-                    new XAttribute("MapSelectionBox_coordinatesVisible", "True"),
-                    new XAttribute("MapLines_defaultColor", "-9868951"),
-                    new XAttribute("MapLines_defaultColorWithLength", "-5103070"),
-                    new XAttribute("MapLines_wayColor", "-8388608"),
-                    new XAttribute("MapLines_peregonColor", "-16777088"),
-                    new XAttribute("MapLines_signalColor", "-8388608"),
-                    new XAttribute("MapLines_signalVisible", "True"),
-                    new XAttribute("MapLines_signalNames", "True"),
-                    new XAttribute("MapPoints_errorArrowColor", "-65536"),
-                    new XAttribute("MapPoints_simpleArrowColor", "-8388480"),
-                    new XAttribute("MapPoints_crossColor", "-5658199"),
-                    new XAttribute("MapPoints_tunnelColor", "-16777216"),
-                    new XAttribute("MapGroups_groupColor", "-8531"),
-                    new XAttribute("MapGroups_groupVisible", "True"),
-                    new XAttribute("MapRoutes_routeColor", "-65536"),
-                    new XAttribute("MapRoutesBuildSettings.maxRoutesCount", "250"),
-                    new XAttribute("MapRoutesBuildSettings.maxRoutesCountForWay", "250"),
-                    new XAttribute("MapText_textVisible", "True"),
-                    new XAttribute("MapText_defaultColor", "-16777216"),
-                    new XAttribute("MapText_defaultDraw", "False")
-                );
-
-
 
                 /*
                  * 
@@ -222,29 +247,6 @@ namespace WinFormsApp1
 
 
                 int increment = 1;
-
-                // Найдем максимальные значения координат
-                double maxX = oldXml.Root.Descendants("SchemaPoint")
-                                    .Select(p => double.TryParse(p.Attribute("X")?.Value, out var x) ? x : 0)
-                                    .Max();
-
-                double maxY = oldXml.Root.Descendants("SchemaPoint")
-                                    .Select(p => double.TryParse(p.Attribute("Y")?.Value, out var y) ? y : 0)
-                                    .Max();
-
-                // Выбираем максимальную координату
-                double maxCoord = Math.Max(maxX, maxY);
-
-                // Определяем масштаб
-                double scale = 1;
-                if (maxCoord >= 10000)
-                {
-                    scale = 100;
-                }
-                else if (maxCoord >= 1000)
-                {
-                    scale = 10;
-                }
 
                 var switchsElement = oldXml.Root.Element("Switchs");
                 var schemaPointsElement = oldXml.Root.Element("Points");
@@ -391,10 +393,11 @@ namespace WinFormsApp1
                                         (sY, eY) = (eY, sY);
                                     }
 
-                                    string shortStartX = Math.Round(sX / scale).ToString("0");
-                                    string shortStartY = Math.Round(sY / scale).ToString("0");
-                                    string shortEndX = Math.Round(eX / scale).ToString("0");
-                                    string shortEndY = Math.Round(eY / scale).ToString("0");
+
+                                    int shortStartX = (int)Math.Round(sX / scale);
+                                    int shortStartY = (int)Math.Round(sY / scale);
+                                    int shortEndX = (int)Math.Round(eX / scale);
+                                    int shortEndY = (int)Math.Round(eY / scale);
 
 
                                     string length = section.Attribute("Length")?.Value ?? "0"; // Если длина не задана, берем 0
@@ -413,18 +416,16 @@ namespace WinFormsApp1
                                     int lineType = !string.IsNullOrEmpty(lineName) ? 2 : 1;
 
                                     // Определяем значение kind
-                                    int kind = shortStartY == shortEndY ? 1 :  // Горизонтальная
-                                               shortStartX == shortEndX ? 0 :  // Вертикальная
-                                               double.Parse(shortStartY) > double.Parse(shortEndY) ? 3 : 2; // Диагональ
+                                    var kind = DetermineLineKind(shortStartX, shortStartY, shortEndX, shortEndY);
 
                                     newXml.Element("lines").Add(
                                         new XElement("line",
                                             new XAttribute("id", increment.ToString()), // Используем инкремент для линий
-                                            new XAttribute("sX", Convert.ToInt32(shortStartX)), // Преобразуем в целое число
-                                            new XAttribute("sY", Convert.ToInt32(shortStartY)), // Преобразуем в целое число
-                                            new XAttribute("eX", Convert.ToInt32(shortEndX)), // Преобразуем в целое число
-                                            new XAttribute("eY", Convert.ToInt32(shortEndY)), // Преобразуем в целое число
-                                            new XAttribute("kind", kind),
+                                            new XAttribute("sX", shortStartX), // Преобразуем в целое число
+                                            new XAttribute("sY", shortStartY), // Преобразуем в целое число
+                                            new XAttribute("eX", shortEndX), // Преобразуем в целое число
+                                            new XAttribute("eY", shortEndY), // Преобразуем в целое число
+                                            new XAttribute("kind", (int)kind),
                                             new XElement("lineInfo",
                                                 new XAttribute("type", lineType),
                                                 new XAttribute("name", lineName),
