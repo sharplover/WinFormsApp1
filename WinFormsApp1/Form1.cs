@@ -14,6 +14,101 @@ namespace WinFormsApp1
             InitializeComponent();
         }
 
+
+        // Метод для превращения прямых углов в диагонали
+        private void ConvertRightAnglesToDiagonals(XElement newXml, int increment)
+        {
+            var lines = newXml.Element("lines")?.Elements("line")?.ToList(); // Копия списка линий
+            if (lines == null || lines.Count < 2) return;
+
+            var linesToRemove = new HashSet<XElement>();
+            var newLines = new List<XElement>();
+
+            foreach (var line1 in lines)
+            {
+                if (linesToRemove.Contains(line1)) continue;
+
+                var sX1 = int.Parse(line1.Attribute("sX")?.Value ?? "0");
+                var sY1 = int.Parse(line1.Attribute("sY")?.Value ?? "0");
+                var eX1 = int.Parse(line1.Attribute("eX")?.Value ?? "0");
+                var eY1 = int.Parse(line1.Attribute("eY")?.Value ?? "0");
+
+                var kind1 = line1.Attribute("kind")?.Value ?? "1";
+                var lineInfo1 = line1.Element("lineInfo");
+                var lineType1 = lineInfo1?.Attribute("type")?.Value ?? "";
+                var lineName1 = lineInfo1?.Attribute("name")?.Value ?? "";
+                var specialization1 = lineInfo1?.Attribute("specialization")?.Value ?? "";
+                var length1 = lineInfo1?.Attribute("length")?.Value ?? "";
+
+                bool line1IsVertical = sX1 == eX1;
+                bool line1IsHorizontal = sY1 == eY1;
+
+                foreach (var line2 in lines)
+                {
+                    if (line1 == line2 || linesToRemove.Contains(line2)) continue;
+
+                    var sX2 = int.Parse(line2.Attribute("sX")?.Value ?? "0");
+                    var sY2 = int.Parse(line2.Attribute("sY")?.Value ?? "0");
+                    var eX2 = int.Parse(line2.Attribute("eX")?.Value ?? "0");
+                    var eY2 = int.Parse(line2.Attribute("eY")?.Value ?? "0");
+
+                    bool line2IsVertical = sX2 == eX2;
+                    bool line2IsHorizontal = sY2 == eY2;
+
+                    // Проверяем, есть ли прямой угол (конец одной линии совпадает с началом другой)
+                    if ((eX1 == sX2 && eY1 == sY2) && // Совпадение точки
+                        ((line1IsVertical && line2IsHorizontal) || (line1IsHorizontal && line2IsVertical))) // Перпендикулярность
+                    {
+                        // Создаем диагональную линию
+                        newLines.Add(new XElement("line",
+                            new XAttribute("id", increment.ToString()),
+                            new XAttribute("sX", sX1),
+                            new XAttribute("sY", sY1),
+                            new XAttribute("eX", eX2),
+                            new XAttribute("eY", eY2),
+                            new XAttribute("kind", kind1),
+                            new XElement("lineInfo",
+                        new XAttribute("type", lineType1),
+                        new XAttribute("name", lineName1),
+                        new XAttribute("specialization", specialization1),
+                        new XAttribute("lengthInVagons", "0"),
+                        new XAttribute("length", length1),
+                        new XAttribute("park", ""),
+                        new XAttribute("lengthLeft", "0"),
+                        new XAttribute("nameLeft", ""),
+                        new XAttribute("signalLeft", "3"),
+                        new XAttribute("lengthRight", "0"),
+                        new XAttribute("nameRight", ""),
+                        new XAttribute("signalRight", "3")
+                    )
+                        ));
+
+                        // Помечаем старые линии для удаления
+                        linesToRemove.Add(line1);
+                        linesToRemove.Add(line2);
+
+                        increment++;
+
+                        break; // Переходим к следующей линии
+                    }
+                }
+            }
+
+            // Удаляем старые линии
+            foreach (var line in linesToRemove)
+            {
+                Debug.WriteLine(line);
+                line.Remove();
+
+            }
+
+            // Добавляем новые линии
+            foreach (var newLine in newLines)
+            {
+                newXml.Element("lines")?.Add(newLine);
+            }
+        }
+
         // Обработчик кнопки выбора исходного XML
         private void btnSelectFile_Click(object sender, EventArgs e)
         {
@@ -42,8 +137,8 @@ namespace WinFormsApp1
                 XDocument oldXml = XDocument.Load(sourceFile);
                 XElement newXml = new XElement("StationMap",
                     new XAttribute("Step", "13"),
-                    new XAttribute("Width", "142"),
-                    new XAttribute("Height", "36"),
+                    new XAttribute("Width", "1420"),
+                    new XAttribute("Height", "360"),
                     new XElement("points"),
                     new XElement("lines"),
                     new XElement("textCollection"),
@@ -352,6 +447,9 @@ namespace WinFormsApp1
                             }
                         }
                     }
+
+                    // Применение метода для превращения прямых углов в диагонали
+                    ConvertRightAnglesToDiagonals(newXml, increment);
 
                     // Определяем путь для нового файла
                     string destinationFile = Path.Combine(Path.GetDirectoryName(sourceFile), "новый.xml");
