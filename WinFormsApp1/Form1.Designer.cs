@@ -6,6 +6,7 @@
         private System.Windows.Forms.Button btnSelectFile;
         private System.Windows.Forms.TextBox txtSourceFile;
         private System.Windows.Forms.Button btnExecute;
+        private System.Windows.Forms.CheckBox nameCheckBox;
 
         protected override void Dispose(bool disposing)
         {
@@ -21,6 +22,7 @@
             btnSelectFile = new Button();
             txtSourceFile = new TextBox();
             btnExecute = new Button();
+            nameCheckBox = new CheckBox();
             SuspendLayout();
             // 
             // btnSelectFile
@@ -42,18 +44,29 @@
             // 
             // btnExecute
             // 
-            btnExecute.Location = new Point(113, 84);
+            btnExecute.Location = new Point(115, 101);
             btnExecute.Name = "btnExecute";
             btnExecute.Size = new Size(120, 23);
-            btnExecute.TabIndex = 4;
+            btnExecute.TabIndex = 3;
             btnExecute.Text = "Выполнить";
             btnExecute.UseVisualStyleBackColor = true;
             btnExecute.Click += btnExecute_Click;
             // 
+            // nameCheckBox
+            // 
+            nameCheckBox.Location = new Point(51, 75);
+            nameCheckBox.Name = "nameCheckBox";
+            nameCheckBox.Size = new Size(200, 20);
+            nameCheckBox.TabIndex = 2;
+            nameCheckBox.Text = "Заполнять пути";
+            nameCheckBox.UseVisualStyleBackColor = true;
+            nameCheckBox.Checked = true;
+            // 
             // Form1
             // 
-            ClientSize = new Size(358, 122);
+            ClientSize = new Size(358, 136);
             Controls.Add(btnExecute);
+            Controls.Add(nameCheckBox);
             Controls.Add(txtSourceFile);
             Controls.Add(btnSelectFile);
             Name = "Form1";

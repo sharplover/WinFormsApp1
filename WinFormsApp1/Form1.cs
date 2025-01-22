@@ -38,6 +38,7 @@ namespace WinFormsApp1
             if (lines == null || lines.Count < 2) return;
 
             var linesToRemove = new HashSet<XElement>();
+            var pointsToRemove = new HashSet<XElement>();
             var newLines = new List<XElement>();
 
             foreach (var line1 in lines)
@@ -109,6 +110,33 @@ namespace WinFormsApp1
 
                         break; // Переходим к следующей линии
                     }
+                }
+            }
+
+            // Найти точки, связанные с удаляемыми линиями
+            var points = newXml.Element("points")?.Elements("point").ToList();
+            if (points != null)
+            {
+                foreach (var line in linesToRemove)
+                {
+                    var sX = int.Parse(line.Attribute("sX")?.Value ?? "0");
+                    var sY = int.Parse(line.Attribute("sY")?.Value ?? "0");
+                    var eX = int.Parse(line.Attribute("eX")?.Value ?? "0");
+                    var eY = int.Parse(line.Attribute("eY")?.Value ?? "0");
+
+                    pointsToRemove.UnionWith(points.Where(p =>
+                        (int.Parse(p.Attribute("X")?.Value ?? "0") == sX &&
+                         int.Parse(p.Attribute("Y")?.Value ?? "0") == sY) ||
+                        (int.Parse(p.Attribute("X")?.Value ?? "0") == eX &&
+                         int.Parse(p.Attribute("Y")?.Value ?? "0") == eY)
+                    ));
+                }
+
+                // Удалить точки
+                foreach (var point in pointsToRemove)
+                {
+                    Debug.WriteLine(point);
+                    point.Remove();
                 }
             }
 
@@ -403,17 +431,26 @@ namespace WinFormsApp1
                                     string length = section.Attribute("Length")?.Value ?? "0"; // Если длина не задана, берем 0
 
 
-                                    // Присваиваем имя только для самой длинной секции
-                                    string lineName = section.Attribute("Guid")?.Value == longestSection?.SectionElement.Attribute("Guid")?.Value ? editorTrackNumber : "";
+                                    string lineName = string.Empty;
+                                    bool isMain = false;
+                                    string specialization = string.Empty;
+                                    int lineType = 0;
 
+                                    if (nameCheckBox.Checked)
+                                    {
 
-                                    // Получение значения IsMain
-                                    bool isMain = section.Attribute("IsMain")?.Value == "true";
+                                        // Присваиваем имя только для самой длинной секции
+                                        lineName = section.Attribute("Guid")?.Value == longestSection?.SectionElement.Attribute("Guid")?.Value ? editorTrackNumber : "";
 
-                                    // Определение значения name и specialization
-                                    string specialization = isMain ? "15" : string.IsNullOrEmpty(lineName) ? "17" : "2";
+                                        // Получение значения IsMain
+                                        isMain = section.Attribute("IsMain")?.Value == "true";
 
-                                    int lineType = !string.IsNullOrEmpty(lineName) ? 2 : 1;
+                                        // Определение значения specialization
+                                        specialization = isMain ? "15" : string.IsNullOrEmpty(lineName) ? "17" : "2";
+
+                                        lineType = !string.IsNullOrEmpty(lineName) ? 2 : 1;
+
+                                    }
 
                                     // Определяем значение kind
                                     var kind = DetermineLineKind(shortStartX, shortStartY, shortEndX, shortEndY);
@@ -453,7 +490,10 @@ namespace WinFormsApp1
                     ConvertRightAnglesToDiagonals(newXml, increment);
 
                     // Определяем путь для нового файла
-                    string destinationFile = Path.Combine(Path.GetDirectoryName(sourceFile), "новый.xml");
+                    string destinationFile = Path.Combine(
+                        Path.GetDirectoryName(sourceFile),
+                        $"{Path.GetFileNameWithoutExtension(sourceFile)}-new.xml"
+                    );
                     newXml.Save(destinationFile);
 
                     MessageBox.Show($"Преобразование завершено. Файл сохранен в: {destinationFile}", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
